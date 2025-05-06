@@ -1,6 +1,8 @@
 import os
+import pickle
 import subprocess
 import sys
+import tempfile
 from base64 import urlsafe_b64encode
 from getpass import getpass
 from pathlib import Path
@@ -24,6 +26,7 @@ SHOW_CONTEXT_MESSAGES = False
 
 SECURE_DIR = Path.home() / ".promptix"
 SECURE_FILE = SECURE_DIR / "token.enc"
+SESSION_FILE = Path(tempfile.gettempdir()) / "promptix_session.pkl"
 
 
 def derive_key(password: str, salt: bytes) -> bytes:
@@ -53,14 +56,36 @@ def decrypt_token(enc_data: bytes, password: str) -> str:
     return fernet.decrypt(token_enc).decode()  # type: ignore
 
 
+def save_session_token(decrypted_token: str) -> None:
+    with open(SESSION_FILE, "wb") as f:
+        pickle.dump(decrypted_token, f)
+
+
+def load_session_token() -> str | None:
+    if SESSION_FILE.exists():
+        try:
+            with open(SESSION_FILE, "rb") as f:
+                return pickle.load(f)  # type: ignore
+        except Exception:
+            return None
+    return None
+
+
 def load_or_create_token() -> str:
+    cached = load_session_token()
+    if cached:
+        print("[bold green][✓] Using cached token from session[/bold green]")
+        return cached
+
     SECURE_DIR.mkdir(exist_ok=True)
     if SECURE_FILE.exists():
         password = getpass("[Promptix] Enter your master password: ")
         with open(SECURE_FILE, "rb") as f:
             enc_data = f.read()
         try:
-            return decrypt_token(enc_data, password)
+            token = decrypt_token(enc_data, password)
+            save_session_token(token)
+            return token
         except Exception:
             print(
                 "[bold red][!] Invalid password or corrupted token file[/bold red]"
@@ -73,6 +98,7 @@ def load_or_create_token() -> str:
         with open(SECURE_FILE, "wb") as f:
             f.write(enc_data)
         print("[bold green][✓] Token stored securely[/bold green]")
+        save_session_token(token)
         return token
 
 
