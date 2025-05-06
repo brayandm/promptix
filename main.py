@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from rich import print
 from rich.console import Console
 
+SHOW_CONTEXT_MESSAGES = False
+
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -97,19 +99,21 @@ def main() -> None:
             stripped = user_input.strip()
 
             if pending_context["add"]:
-                print(
-                    f"[bold green][+] Context added:[/bold green] [cyan]{pending_context['add']}[/cyan]\n"
-                )
+                if SHOW_CONTEXT_MESSAGES:
+                    print(
+                        f"[bold green][+] Context added:[/bold green] [cyan]{pending_context['add']}[/cyan]\n"
+                    )
                 pending_context["add"] = None
                 continue
 
             if pending_context["remove"]:
-                if pending_context["remove"] == "__empty__":
-                    print("[bold red][!] Stack is empty[/bold red]\n")
-                else:
-                    print(
-                        f"[bold yellow][-] Context removed:[/bold yellow] [cyan]{pending_context['remove']}[/cyan]\n"
-                    )
+                if SHOW_CONTEXT_MESSAGES:
+                    if pending_context["remove"] == "__empty__":
+                        print("[bold red][!] Stack is empty[/bold red]\n")
+                    else:
+                        print(
+                            f"[bold yellow][-] Context removed:[/bold yellow] [cyan]{pending_context['remove']}[/cyan]\n"
+                        )
                 pending_context["remove"] = None
                 continue
 
