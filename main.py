@@ -18,9 +18,11 @@ bindings: KeyBindings = KeyBindings()
 
 @bindings.add("c-n")
 def push_context(event: KeyPressEvent) -> None:
-    new_context: str = session.prompt("New context: ")
-    context_stack.append(new_context)
-    print(f"[Context added]: {new_context}")
+    text = event.app.current_buffer.text.strip()
+    if text:
+        context_stack.append(text)
+        event.app.current_buffer.reset()
+        print(f"[Context added]: {text}")
 
 
 @bindings.add("c-b")
