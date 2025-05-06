@@ -13,6 +13,8 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from openai import OpenAI
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
+from prompt_toolkit.input.defaults import create_input
+from prompt_toolkit.input.vt100 import raw_mode
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from rich import print
@@ -123,6 +125,8 @@ pending_context: dict = {"add": None, "remove": None, "options": False}  # type:
 
 def configure_promptix() -> None:
     global REMEMBER_PASSWORD
+    inp = create_input()
+
     while True:
         print("\n[bold cyan]Promptix Configuration[/bold cyan]")
         print("[1] Change password")
@@ -137,13 +141,16 @@ def configure_promptix() -> None:
             ),
         )
         print("[5] Exit configuration")
+        print("\nPress [1-5] to select an option...")
 
-        try:
-            choice = input("Choose an option: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
+        key = None
+        with raw_mode(inp.fileno()):
+            while not key:
+                keys = inp.read_keys()
+                if keys:
+                    key = keys[0].key
 
-        if choice == "1":
+        if key == "1":
             if not SECURE_FILE.exists():
                 print("[bold red]No token stored yet[/bold red]")
                 continue
@@ -161,7 +168,7 @@ def configure_promptix() -> None:
             except Exception:
                 print("[bold red]Incorrect password[/bold red]")
 
-        elif choice == "2":
+        elif key == "2":
             password = getpass("Enter your password: ")
             token = getpass("Enter new OpenAI token: ")
             enc_data = encrypt_token(token, password)
@@ -169,13 +176,10 @@ def configure_promptix() -> None:
                 f.write(enc_data)
             print("[bold green]Token updated successfully[/bold green]")
 
-        elif choice == "3":
-            try:
-                confirm = input(
-                    "Are you sure you want to delete all data? (yes/no): "
-                )
-            except (EOFError, KeyboardInterrupt):
-                continue
+        elif key == "3":
+            confirm = input(
+                "Are you sure you want to delete all data? (yes/no): "
+            )
             if confirm.lower() == "yes":
                 if SECURE_FILE.exists():
                     SECURE_FILE.unlink()
@@ -183,13 +187,13 @@ def configure_promptix() -> None:
                 print("[bold red]All data deleted[/bold red]")
                 sys.exit(0)
 
-        elif choice == "4":
+        elif key == "4":
             REMEMBER_PASSWORD = not REMEMBER_PASSWORD
             if not REMEMBER_PASSWORD:
                 clear_cached_password()
             print("[bold green]Preference updated[/bold green]")
 
-        elif choice == "5":
+        elif key == "5":
             break
         else:
             print("[bold yellow]Invalid choice[/bold yellow]")
