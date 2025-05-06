@@ -23,14 +23,22 @@ pyenv local
 PIPENV_VENV_IN_PROJECT=1 pipenv install --dev
 ```
 
-3 - Copy the `.env.example` file to `.env`:
+4 - Copy the `.env.example` file to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-4 - Run the application
+5 - Run the application
 
 ```bash
 pipenv run python main.py
+```
+
+## Development
+
+1 - Install pre-commit hooks
+
+```bash
+pipenv run pre-commit install
 ```
