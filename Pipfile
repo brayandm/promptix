@@ -9,6 +9,7 @@ keyboard = "*"
 openai = "*"
 rich = "*"
 python-dotenv = "*"
+cryptography = "*"
 
 [dev-packages]
 pre-commit = "*"

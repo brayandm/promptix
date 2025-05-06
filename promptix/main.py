@@ -1,9 +1,15 @@
 import os
 import subprocess
 import sys
+from base64 import urlsafe_b64encode
+from getpass import getpass
+from pathlib import Path
 from typing import List
 
-from dotenv import load_dotenv
+from cryptography.fernet import Fernet
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from openai import OpenAI
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
@@ -14,8 +20,66 @@ from rich.console import Console
 
 SHOW_CONTEXT_MESSAGES = False
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# === Secure Token Storage ===
+
+SECURE_DIR = Path.home() / ".promptix"
+SECURE_FILE = SECURE_DIR / "token.enc"
+
+
+def derive_key(password: str, salt: bytes) -> bytes:
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100_000,
+        backend=default_backend(),
+    )
+    return urlsafe_b64encode(kdf.derive(password.encode()))
+
+
+def encrypt_token(token: str, password: str) -> bytes:
+    salt = os.urandom(16)
+    key = derive_key(password, salt)
+    fernet = Fernet(key)
+    token_enc = fernet.encrypt(token.encode())
+    return salt + token_enc  # type: ignore
+
+
+def decrypt_token(enc_data: bytes, password: str) -> str:
+    salt = enc_data[:16]
+    token_enc = enc_data[16:]
+    key = derive_key(password, salt)
+    fernet = Fernet(key)
+    return fernet.decrypt(token_enc).decode()  # type: ignore
+
+
+def load_or_create_token() -> str:
+    SECURE_DIR.mkdir(exist_ok=True)
+    if SECURE_FILE.exists():
+        password = getpass("[Promptix] Enter your master password: ")
+        with open(SECURE_FILE, "rb") as f:
+            enc_data = f.read()
+        try:
+            return decrypt_token(enc_data, password)
+        except Exception:
+            print(
+                "[bold red][!] Invalid password or corrupted token file[/bold red]"
+            )
+            sys.exit(1)
+    else:
+        password = getpass("[Promptix] Set a master password: ")
+        token = getpass("[Promptix] Enter your OpenAI token: ")
+        enc_data = encrypt_token(token, password)
+        with open(SECURE_FILE, "wb") as f:
+            f.write(enc_data)
+        print("[bold green][✓] Token stored securely[/bold green]")
+        return token
+
+
+# === Promptix Core ===
+
+token = load_or_create_token()
+client = OpenAI(api_key=token)
 
 context_stack: List[str] = []
 bindings: KeyBindings = KeyBindings()

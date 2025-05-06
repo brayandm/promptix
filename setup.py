@@ -10,6 +10,7 @@ setup(
         "openai",
         "rich",
         "python-dotenv",
+        "cryptography",
     ],
     entry_points={
         "console_scripts": [
