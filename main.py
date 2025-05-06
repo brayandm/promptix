@@ -2,6 +2,7 @@ from typing import List
 from prompt_toolkit import PromptSession
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+from prompt_toolkit.formatted_text import HTML
 import subprocess
 from openai import OpenAI
 import os
@@ -14,9 +15,19 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 context_stack: List[str] = []
-session: PromptSession = PromptSession()  # type: ignore
 bindings: KeyBindings = KeyBindings()
 console = Console()
+
+
+def build_prompt() -> HTML:
+    if context_stack:
+        return HTML(
+            f'<cyan>[{" > ".join(context_stack)}]</cyan> <green>></green> '
+        )
+    return HTML("<green>></green> ")
+
+
+session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # type: ignore
 
 
 @bindings.add("c-n")
@@ -28,6 +39,7 @@ def push_context(event: KeyPressEvent) -> None:
         print(
             f"\n[bold green][+] Context added:[/bold green] [cyan]{text}[/cyan]\n"
         )
+        event.app.invalidate()
 
 
 @bindings.add("c-b")
@@ -39,10 +51,7 @@ def pop_context(event: KeyPressEvent) -> None:
         )
     else:
         print("\n[bold red][!] Stack is empty[/bold red]\n")
-
-
-def build_prompt() -> str:
-    return f"[{' > '.join(context_stack)}] > " if context_stack else "> "
+    event.app.invalidate()
 
 
 def get_command_from_gpt(prompt: str) -> str:
@@ -90,15 +99,13 @@ def main() -> None:
     )
     while True:
         try:
-            user_input: str = session.prompt(
-                build_prompt(), key_bindings=bindings
-            )
+            user_input: str = session.prompt()
             if not user_input.strip():
                 continue
             command: str = get_command_from_gpt(user_input)
             execute_command(command)
         except KeyboardInterrupt:
-            print("\n[bold red][Interrupted by user][/bold red]")
+            print("\n[bold red][Exiting on Ctrl+C][/bold red]")
             break
         except EOFError:
             print("\n[bold red][Exiting...][/bold red]")
