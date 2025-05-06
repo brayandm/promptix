@@ -1,15 +1,16 @@
+import os
+import subprocess
+import sys
 from typing import List
+
+from dotenv import load_dotenv
+from openai import OpenAI
 from prompt_toolkit import PromptSession
+from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
-from prompt_toolkit.formatted_text import HTML
-import subprocess
-from openai import OpenAI
-import os
-from dotenv import load_dotenv
 from rich import print
 from rich.console import Console
-import sys
 
 SHOW_CONTEXT_MESSAGES = False
 
@@ -33,7 +34,7 @@ session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # t
 pending_context: dict = {"add": None, "remove": None}  # type: ignore
 
 
-@bindings.add("c-n")
+@bindings.add("c-n")  # type: ignore
 def push_context(event: KeyPressEvent) -> None:
     text = event.app.current_buffer.text.strip()
     if text:
@@ -43,7 +44,7 @@ def push_context(event: KeyPressEvent) -> None:
     event.app.exit("")  # type: ignore
 
 
-@bindings.add("c-b")
+@bindings.add("c-b")  # type: ignore
 def pop_context(event: KeyPressEvent) -> None:
     if context_stack:
         removed = context_stack.pop()

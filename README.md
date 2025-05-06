@@ -1,5 +1,15 @@
 # Promptix v0.1.0
 
+### Installation with pip
+
+Install directly from GitHub (recommended for now):
+
+```bash
+pip install git+https://github.com/brayandm/promptix
+```
+
+## For Developers
+
 1 - Install pyenv & pipenv on your system
 
 -   [pyenv](https://github.com/pyenv/pyenv#installation)
@@ -23,22 +33,26 @@ pyenv local
 PIPENV_VENV_IN_PROJECT=1 pipenv install --dev
 ```
 
-4 - Copy the `.env.example` file to `.env`:
+5 - Install pre-commit hooks
+
+```bash
+pipenv run pre-commit install
+```
+
+6 - Copy the `.env.example` file to `.env`:
 
 ```bash
 cp .env.example .env
 ```
 
-5 - Run the application
+7 - Set up the Application
 
 ```bash
-pipenv run python main.py
+pip install -e .
 ```
 
-## Development
-
-1 - Install pre-commit hooks
+8 - Run the application
 
 ```bash
-pipenv run pre-commit install
+promptix
 ```
