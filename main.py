@@ -6,6 +6,8 @@ import subprocess
 from openai import OpenAI
 import os
 from dotenv import load_dotenv
+from rich import print
+from rich.console import Console
 
 load_dotenv()
 
@@ -14,6 +16,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 context_stack: List[str] = []
 session: PromptSession = PromptSession()  # type: ignore
 bindings: KeyBindings = KeyBindings()
+console = Console()
 
 
 @bindings.add("c-n")
@@ -22,16 +25,20 @@ def push_context(event: KeyPressEvent) -> None:
     if text:
         context_stack.append(text)
         event.app.current_buffer.reset()
-        print(f"\n[+] Context added: {text}\n")
+        print(
+            f"\n[bold green][+] Context added:[/bold green] [cyan]{text}[/cyan]\n"
+        )
 
 
 @bindings.add("c-b")
 def pop_context(event: KeyPressEvent) -> None:
     if context_stack:
         popped: str = context_stack.pop()
-        print(f"\n[-] Context removed: {popped}\n")
+        print(
+            f"\n[bold yellow][-] Context removed:[/bold yellow] [cyan]{popped}[/cyan]\n"
+        )
     else:
-        print("\n[!] Stack is empty\n")
+        print("\n[bold red][!] Stack is empty[/bold red]\n")
 
 
 def build_prompt() -> str:
@@ -40,7 +47,9 @@ def build_prompt() -> str:
 
 def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
-    print(f"\n[>] Sending to GPT: {full_prompt}\n")
+    print(
+        f"\n[bold blue][>] Sending to GPT:[/bold blue] [white]{full_prompt}[/white]\n"
+    )
 
     system_prompt = (
         "You are a CLI assistant that converts instructions into shell commands.\n"
@@ -59,23 +68,25 @@ def get_command_from_gpt(prompt: str) -> str:
 
 
 def execute_command(command: str) -> None:
-    print(f"[?] Execute: {command} (y/n)")
-    confirm: str = input("> ").strip().lower()
+    print(
+        f"[bold magenta][?] Execute:[/bold magenta] [green]{command}[/green] (Y/n)"
+    )
+    confirm: str = input("> ").strip().lower() or "y"
     if confirm == "y":
         try:
             result = subprocess.run(
                 command, shell=True, check=True, text=True, capture_output=True
             )
-            print(result.stdout)
+            console.print(result.stdout, style="white")
         except subprocess.CalledProcessError as e:
-            print(f"[!] Error: {e.stderr}")
+            print(f"[bold red][!] Error:[/bold red] {e.stderr}")
     else:
-        print("[x] Cancelled")
+        print("[bold yellow][x] Cancelled[/bold yellow]")
 
 
 def main() -> None:
     print(
-        "\nPromptix started. Use Ctrl+N to add context, Ctrl+B to remove it. Ctrl+C to exit.\n"
+        "\n[bold cyan]Promptix started.[/bold cyan] Use [bold]Ctrl+N[/bold] to add context, [bold]Ctrl+B[/bold] to remove it. [bold]Ctrl+C[/bold] to exit.\n"
     )
     while True:
         try:
@@ -87,9 +98,10 @@ def main() -> None:
             command: str = get_command_from_gpt(user_input)
             execute_command(command)
         except KeyboardInterrupt:
-            print("\n[Interrupted by user]")
+            print("\n[bold red][Interrupted by user][/bold red]")
+            break
         except EOFError:
-            print("\n[Exiting...]")
+            print("\n[bold red][Exiting...][/bold red]")
             break
 
 
