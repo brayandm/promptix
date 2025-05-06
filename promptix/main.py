@@ -112,7 +112,7 @@ session: PromptSession = PromptSession(HTML("<green>></green> "), key_bindings=b
 pending_context: dict = {"add": None, "remove": None, "options": False}  # type: ignore
 
 
-def configure_promptix_inline() -> None:
+def configure_promptix() -> None:
     global REMEMBER_PASSWORD
     while True:
         print("\n[bold cyan]Promptix Configuration[/bold cyan]")
@@ -120,7 +120,7 @@ def configure_promptix_inline() -> None:
         print("[2] Change token")
         print("[3] Delete all data")
         print(
-            "[4] Toggle 'Remember password':",
+            "[4] Remember password:",
             (
                 "[green]Enabled[/green]"
                 if REMEMBER_PASSWORD
@@ -265,7 +265,7 @@ def main() -> None:
             if pending_context["options"]:
                 overwrite_previous_prompt_line()
                 pending_context["options"] = False
-                configure_promptix_inline()
+                configure_promptix()
                 continue
 
             if pending_context["add"]:
