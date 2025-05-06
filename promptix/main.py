@@ -102,6 +102,8 @@ def load_or_create_token() -> str:
 
 # === Promptix Core ===
 
+token = load_or_create_token()
+client = OpenAI(api_key=token)
 context_stack: List[str] = []
 bindings: KeyBindings = KeyBindings()
 console = Console()
@@ -304,6 +306,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    token = load_or_create_token()
-    client = OpenAI(api_key=token)
     main()
