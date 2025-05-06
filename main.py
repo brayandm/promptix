@@ -53,9 +53,6 @@ def pop_context(event: KeyPressEvent) -> None:
 
 def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
-    print(
-        f"\n[bold blue]↳ GPT input:[/bold blue] [white]{full_prompt}[/white]\n"
-    )
 
     system_prompt = (
         "You are a CLI assistant that converts instructions into shell commands.\n"
