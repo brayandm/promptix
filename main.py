@@ -11,7 +11,6 @@ from rich import print
 from rich.console import Console
 
 load_dotenv()
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 context_stack: List[str] = []
@@ -29,15 +28,15 @@ def build_prompt() -> HTML:
 
 session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # type: ignore
 
+pending_context: dict = {"add": None, "remove": None}  # type: ignore
+
 
 @bindings.add("c-n")
 def push_context(event: KeyPressEvent) -> None:
     text = event.app.current_buffer.text.strip()
     if text:
         context_stack.append(text)
-    print(
-        f"\n[bold green][+] Context added:[/bold green] [cyan]{text}[/cyan]\n"
-    )
+        pending_context["add"] = text
     event.app.current_buffer.reset()
     event.app.exit("")  # type: ignore
 
@@ -45,19 +44,17 @@ def push_context(event: KeyPressEvent) -> None:
 @bindings.add("c-b")
 def pop_context(event: KeyPressEvent) -> None:
     if context_stack:
-        popped: str = context_stack.pop()
-        print(
-            f"\n[bold yellow][-] Context removed:[/bold yellow] [cyan]{popped}[/cyan]\n"
-        )
+        removed = context_stack.pop()
+        pending_context["remove"] = removed
     else:
-        print("\n[bold red][!] Stack is empty[/bold red]\n")
-    event.app.invalidate()
+        pending_context["remove"] = "__empty__"
+    event.app.exit("")  # type: ignore
 
 
 def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
     print(
-        f"\n[bold blue][>] Sending to GPT:[/bold blue] [white]{full_prompt}[/white]\n"
+        f"\n[bold blue]↳ GPT input:[/bold blue] [white]{full_prompt}[/white]\n"
     )
 
     system_prompt = (
@@ -100,10 +97,31 @@ def main() -> None:
     while True:
         try:
             user_input: str = session.prompt()
-            if not user_input.strip():
+            stripped = user_input.strip()
+
+            if pending_context["add"]:
+                print(
+                    f"[bold green][+] Context added:[/bold green] [cyan]{pending_context['add']}[/cyan]\n"
+                )
+                pending_context["add"] = None
                 continue
-            command: str = get_command_from_gpt(user_input)
+
+            if pending_context["remove"]:
+                if pending_context["remove"] == "__empty__":
+                    print("[bold red][!] Stack is empty[/bold red]\n")
+                else:
+                    print(
+                        f"[bold yellow][-] Context removed:[/bold yellow] [cyan]{pending_context['remove']}[/cyan]\n"
+                    )
+                pending_context["remove"] = None
+                continue
+
+            if not stripped:
+                continue
+
+            command: str = get_command_from_gpt(stripped)
             execute_command(command)
+
         except KeyboardInterrupt:
             print("\n[bold red][Exiting on Ctrl+C][/bold red]")
             break
