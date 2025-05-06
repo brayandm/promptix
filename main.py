@@ -42,12 +42,18 @@ def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
     print(f"[Sending to GPT]: {full_prompt}")
 
+    prompt = """
+    You are a CLI assistant that converts instructions into shell commands.
+    You will receive a list of instructions and you need to convert them into a single shell command.
+    You should only return the command without any explanation or additional text.
+    """
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
             {
                 "role": "system",
-                "content": "You are a CLI assistant that converts instructions into shell commands.",
+                "content": prompt,
             },
             {"role": "user", "content": full_prompt},
         ],
