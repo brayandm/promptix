@@ -22,16 +22,16 @@ def push_context(event: KeyPressEvent) -> None:
     if text:
         context_stack.append(text)
         event.app.current_buffer.reset()
-        print(f"[Context added]: {text}")
+        print(f"\n[+] Context added: {text}\n")
 
 
 @bindings.add("c-b")
 def pop_context(event: KeyPressEvent) -> None:
     if context_stack:
         popped: str = context_stack.pop()
-        print(f"[Context removed]: {popped}")
+        print(f"\n[-] Context removed: {popped}\n")
     else:
-        print("[Stack is empty]")
+        print("\n[!] Stack is empty\n")
 
 
 def build_prompt() -> str:
@@ -40,21 +40,18 @@ def build_prompt() -> str:
 
 def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
-    print(f"[Sending to GPT]: {full_prompt}")
+    print(f"\n[>] Sending to GPT: {full_prompt}\n")
 
-    prompt = """
-    You are a CLI assistant that converts instructions into shell commands.
-    You will receive a list of instructions and you need to convert them into a single shell command.
-    You should only return the command without any explanation or additional text.
-    """
+    system_prompt = (
+        "You are a CLI assistant that converts instructions into shell commands.\n"
+        "You will receive a list of instructions and you need to convert them into a single shell command.\n"
+        "You should only return the command without any explanation or additional text."
+    )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {
-                "role": "system",
-                "content": prompt,
-            },
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": full_prompt},
         ],
     )
@@ -62,7 +59,7 @@ def get_command_from_gpt(prompt: str) -> str:
 
 
 def execute_command(command: str) -> None:
-    print(f"Execute command?: {command} (y/n)")
+    print(f"[?] Execute: {command} (y/n)")
     confirm: str = input("> ").strip().lower()
     if confirm == "y":
         try:
@@ -71,14 +68,14 @@ def execute_command(command: str) -> None:
             )
             print(result.stdout)
         except subprocess.CalledProcessError as e:
-            print(f"[Error]: {e.stderr}")
+            print(f"[!] Error: {e.stderr}")
     else:
-        print("[Cancelled]")
+        print("[x] Cancelled")
 
 
 def main() -> None:
     print(
-        "Promptix started. Use Ctrl+N to add context, Ctrl+B to remove it. Ctrl+C to exit."
+        "\nPromptix started. Use Ctrl+N to add context, Ctrl+B to remove it. Ctrl+C to exit.\n"
     )
     while True:
         try:
@@ -88,7 +85,6 @@ def main() -> None:
             if not user_input.strip():
                 continue
             command: str = get_command_from_gpt(user_input)
-            print(f"[Suggested command]: {command}")
             execute_command(command)
         except KeyboardInterrupt:
             print("\n[Interrupted by user]")
