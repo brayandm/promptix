@@ -177,10 +177,12 @@ def configure_promptix() -> None:
             print("[bold green]Token updated successfully[/bold green]")
 
         elif key == "3":
-            confirm = input(
-                "Are you sure you want to delete all data? (yes/no): "
+            confirm = (
+                input("Are you sure you want to delete all data? (y/N): ")
+                .strip()
+                .lower()
             )
-            if confirm.lower() == "yes":
+            if confirm == "y":
                 if SECURE_FILE.exists():
                     SECURE_FILE.unlink()
                 clear_cached_password()
