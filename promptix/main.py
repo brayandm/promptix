@@ -102,13 +102,22 @@ def load_or_create_token() -> str:
 
 # === Promptix Core ===
 
+
+def build_prompt() -> HTML:
+    if context_stack:
+        return HTML(
+            f'<cyan>[{" > ".join(context_stack)}]</cyan> <green>></green> '
+        )
+    return HTML("<green>></green> ")
+
+
 token = load_or_create_token()
 client = OpenAI(api_key=token)
 context_stack: List[str] = []
 bindings: KeyBindings = KeyBindings()
 console = Console()
 
-session: PromptSession = PromptSession(HTML("<green>></green> "), key_bindings=bindings)  # type: ignore
+session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # type: ignore
 pending_context: dict = {"add": None, "remove": None, "options": False}  # type: ignore
 
 
