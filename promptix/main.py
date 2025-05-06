@@ -71,73 +71,6 @@ def clear_cached_password() -> None:
 REMEMBER_PASSWORD = SESSION_CACHE.exists()
 
 
-def configure_promptix() -> None:
-    global REMEMBER_PASSWORD
-    while True:
-        print("\n[bold cyan]Promptix Configuration[/bold cyan]")
-        print("[1] Change password")
-        print("[2] Change token")
-        print("[3] Delete all data")
-        print(
-            "[4] Toggle 'Remember password':",
-            (
-                "[green]Enabled[/green]"
-                if REMEMBER_PASSWORD
-                else "[red]Disabled[/red]"
-            ),
-        )
-        print("[5] Exit configuration")
-        choice = input("Choose an option: ").strip()
-
-        if choice == "1":
-            if not SECURE_FILE.exists():
-                print("[bold red]No token stored yet[/bold red]")
-                continue
-            password = getpass("Enter current password: ")
-            try:
-                with open(SECURE_FILE, "rb") as f:
-                    token = decrypt_token(f.read(), password)
-                new_password = getpass("Enter new password: ")
-                enc_data = encrypt_token(token, new_password)
-                with open(SECURE_FILE, "wb") as f:
-                    f.write(enc_data)
-                print("[bold green]Password changed successfully[/bold green]")
-                if REMEMBER_PASSWORD:
-                    cache_password(new_password)
-            except Exception:
-                print("[bold red]Incorrect password[/bold red]")
-
-        elif choice == "2":
-            password = getpass("Enter your password: ")
-            token = getpass("Enter new OpenAI token: ")
-            enc_data = encrypt_token(token, password)
-            with open(SECURE_FILE, "wb") as f:
-                f.write(enc_data)
-            print("[bold green]Token updated successfully[/bold green]")
-
-        elif choice == "3":
-            confirm = input(
-                "Are you sure you want to delete all data? (yes/no): "
-            ).lower()
-            if confirm == "yes":
-                if SECURE_FILE.exists():
-                    SECURE_FILE.unlink()
-                clear_cached_password()
-                print("[bold red]All data deleted[/bold red]")
-                sys.exit(0)
-
-        elif choice == "4":
-            REMEMBER_PASSWORD = not REMEMBER_PASSWORD
-            if not REMEMBER_PASSWORD:
-                clear_cached_password()
-            print("[bold green]Preference updated[/bold green]")
-
-        elif choice == "5":
-            break
-        else:
-            print("[bold yellow]Invalid choice[/bold yellow]")
-
-
 def load_or_create_token() -> str:
     SECURE_DIR.mkdir(exist_ok=True)
     password = load_cached_password() if REMEMBER_PASSWORD else None
@@ -169,24 +102,86 @@ def load_or_create_token() -> str:
 
 # === Promptix Core ===
 
-token = load_or_create_token()
-client = OpenAI(api_key=token)
-
 context_stack: List[str] = []
 bindings: KeyBindings = KeyBindings()
 console = Console()
 
+session: PromptSession = PromptSession(HTML("<green>></green> "), key_bindings=bindings)  # type: ignore
+pending_context: dict = {"add": None, "remove": None, "options": False}  # type: ignore
 
-def build_prompt() -> HTML:
-    if context_stack:
-        return HTML(
-            f'<cyan>[{" > ".join(context_stack)}]</cyan> <green>></green> '
+
+def configure_promptix_inline() -> None:
+    global REMEMBER_PASSWORD
+    while True:
+        print("\n[bold cyan]Promptix Configuration[/bold cyan]")
+        print("[1] Change password")
+        print("[2] Change token")
+        print("[3] Delete all data")
+        print(
+            "[4] Toggle 'Remember password':",
+            (
+                "[green]Enabled[/green]"
+                if REMEMBER_PASSWORD
+                else "[red]Disabled[/red]"
+            ),
         )
-    return HTML("<green>></green> ")
+        print("[5] Exit configuration")
 
+        try:
+            choice = input("Choose an option: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
 
-session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # type: ignore
-pending_context: dict = {"add": None, "remove": None}  # type: ignore
+        if choice == "1":
+            if not SECURE_FILE.exists():
+                print("[bold red]No token stored yet[/bold red]")
+                continue
+            password = getpass("Enter current password: ")
+            try:
+                with open(SECURE_FILE, "rb") as f:
+                    token = decrypt_token(f.read(), password)
+                new_password = getpass("Enter new password: ")
+                enc_data = encrypt_token(token, new_password)
+                with open(SECURE_FILE, "wb") as f:
+                    f.write(enc_data)
+                print("[bold green]Password changed successfully[/bold green]")
+                if REMEMBER_PASSWORD:
+                    cache_password(new_password)
+            except Exception:
+                print("[bold red]Incorrect password[/bold red]")
+
+        elif choice == "2":
+            password = getpass("Enter your password: ")
+            token = getpass("Enter new OpenAI token: ")
+            enc_data = encrypt_token(token, password)
+            with open(SECURE_FILE, "wb") as f:
+                f.write(enc_data)
+            print("[bold green]Token updated successfully[/bold green]")
+
+        elif choice == "3":
+            try:
+                confirm = input(
+                    "Are you sure you want to delete all data? (yes/no): "
+                )
+            except (EOFError, KeyboardInterrupt):
+                continue
+            if confirm.lower() == "yes":
+                if SECURE_FILE.exists():
+                    SECURE_FILE.unlink()
+                clear_cached_password()
+                print("[bold red]All data deleted[/bold red]")
+                sys.exit(0)
+
+        elif choice == "4":
+            REMEMBER_PASSWORD = not REMEMBER_PASSWORD
+            if not REMEMBER_PASSWORD:
+                clear_cached_password()
+            print("[bold green]Preference updated[/bold green]")
+
+        elif choice == "5":
+            break
+        else:
+            print("[bold yellow]Invalid choice[/bold yellow]")
 
 
 @bindings.add("c-n")  # type: ignore
@@ -211,8 +206,8 @@ def pop_context(event: KeyPressEvent) -> None:
 
 @bindings.add("c-o")  # type: ignore
 def open_options(event: KeyPressEvent) -> None:
+    pending_context["options"] = True
     event.app.exit("")  # type: ignore
-    configure_promptix()
 
 
 def get_command_from_gpt(prompt: str) -> str:
@@ -265,6 +260,12 @@ def main() -> None:
             user_input: str = session.prompt()
             stripped = user_input.strip()
 
+            if pending_context["options"]:
+                overwrite_previous_prompt_line()
+                pending_context["options"] = False
+                configure_promptix_inline()
+                continue
+
             if pending_context["add"]:
                 if SHOW_CONTEXT_MESSAGES:
                     print(
@@ -303,4 +304,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    token = load_or_create_token()
+    client = OpenAI(api_key=token)
     main()
