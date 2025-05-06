@@ -9,6 +9,7 @@ import os
 from dotenv import load_dotenv
 from rich import print
 from rich.console import Console
+import sys
 
 SHOW_CONTEXT_MESSAGES = False
 
@@ -29,7 +30,6 @@ def build_prompt() -> HTML:
 
 
 session: PromptSession = PromptSession(build_prompt, key_bindings=bindings)  # type: ignore
-
 pending_context: dict = {"add": None, "remove": None}  # type: ignore
 
 
@@ -89,6 +89,11 @@ def execute_command(command: str) -> None:
         print("[bold yellow][x] Cancelled[/bold yellow]")
 
 
+def overwrite_previous_prompt_line() -> None:
+    sys.stdout.write("\033[F\033[K")
+    sys.stdout.flush()
+
+
 def main() -> None:
     print(
         "\n[bold cyan]Promptix started.[/bold cyan] Use [bold]Ctrl+N[/bold] to add context, [bold]Ctrl+B[/bold] to remove it. [bold]Ctrl+C[/bold] to exit.\n"
@@ -103,6 +108,8 @@ def main() -> None:
                     print(
                         f"[bold green][+] Context added:[/bold green] [cyan]{pending_context['add']}[/cyan]\n"
                     )
+                else:
+                    overwrite_previous_prompt_line()
                 pending_context["add"] = None
                 continue
 
@@ -114,6 +121,8 @@ def main() -> None:
                         print(
                             f"[bold yellow][-] Context removed:[/bold yellow] [cyan]{pending_context['remove']}[/cyan]\n"
                         )
+                else:
+                    overwrite_previous_prompt_line()
                 pending_context["remove"] = None
                 continue
 
