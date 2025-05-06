@@ -35,11 +35,11 @@ def push_context(event: KeyPressEvent) -> None:
     text = event.app.current_buffer.text.strip()
     if text:
         context_stack.append(text)
-        event.app.current_buffer.reset()
-        print(
-            f"\n[bold green][+] Context added:[/bold green] [cyan]{text}[/cyan]\n"
-        )
-        event.app.invalidate()
+    print(
+        f"\n[bold green][+] Context added:[/bold green] [cyan]{text}[/cyan]\n"
+    )
+    event.app.current_buffer.reset()
+    event.app.exit("")  # type: ignore
 
 
 @bindings.add("c-b")
