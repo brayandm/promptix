@@ -4,7 +4,7 @@ import sys
 from base64 import urlsafe_b64encode
 from getpass import getpass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
@@ -21,9 +21,9 @@ from rich.console import Console
 SHOW_CONTEXT_MESSAGES = False
 
 # === Secure Token Storage ===
-
 SECURE_DIR = Path.home() / ".promptix"
 SECURE_FILE = SECURE_DIR / "token.enc"
+SESSION_CACHE = SECURE_DIR / "password_cache"
 
 
 def derive_key(password: str, salt: bytes) -> bytes:
@@ -53,15 +53,103 @@ def decrypt_token(enc_data: bytes, password: str) -> str:
     return fernet.decrypt(token_enc).decode()  # type: ignore
 
 
+def load_cached_password() -> Optional[str]:
+    if SESSION_CACHE.exists():
+        return SESSION_CACHE.read_text().strip()
+    return None
+
+
+def cache_password(password: str) -> None:
+    SESSION_CACHE.write_text(password)
+
+
+def clear_cached_password() -> None:
+    if SESSION_CACHE.exists():
+        SESSION_CACHE.unlink()
+
+
+REMEMBER_PASSWORD = SESSION_CACHE.exists()
+
+
+def configure_promptix() -> None:
+    global REMEMBER_PASSWORD
+    while True:
+        print("\n[bold cyan]Promptix Configuration[/bold cyan]")
+        print("[1] Change password")
+        print("[2] Change token")
+        print("[3] Delete all data")
+        print(
+            "[4] Toggle 'Remember password':",
+            (
+                "[green]Enabled[/green]"
+                if REMEMBER_PASSWORD
+                else "[red]Disabled[/red]"
+            ),
+        )
+        print("[5] Exit configuration")
+        choice = input("Choose an option: ").strip()
+
+        if choice == "1":
+            if not SECURE_FILE.exists():
+                print("[bold red]No token stored yet[/bold red]")
+                continue
+            password = getpass("Enter current password: ")
+            try:
+                with open(SECURE_FILE, "rb") as f:
+                    token = decrypt_token(f.read(), password)
+                new_password = getpass("Enter new password: ")
+                enc_data = encrypt_token(token, new_password)
+                with open(SECURE_FILE, "wb") as f:
+                    f.write(enc_data)
+                print("[bold green]Password changed successfully[/bold green]")
+                if REMEMBER_PASSWORD:
+                    cache_password(new_password)
+            except Exception:
+                print("[bold red]Incorrect password[/bold red]")
+
+        elif choice == "2":
+            password = getpass("Enter your password: ")
+            token = getpass("Enter new OpenAI token: ")
+            enc_data = encrypt_token(token, password)
+            with open(SECURE_FILE, "wb") as f:
+                f.write(enc_data)
+            print("[bold green]Token updated successfully[/bold green]")
+
+        elif choice == "3":
+            confirm = input(
+                "Are you sure you want to delete all data? (yes/no): "
+            ).lower()
+            if confirm == "yes":
+                if SECURE_FILE.exists():
+                    SECURE_FILE.unlink()
+                clear_cached_password()
+                print("[bold red]All data deleted[/bold red]")
+                sys.exit(0)
+
+        elif choice == "4":
+            REMEMBER_PASSWORD = not REMEMBER_PASSWORD
+            if not REMEMBER_PASSWORD:
+                clear_cached_password()
+            print("[bold green]Preference updated[/bold green]")
+
+        elif choice == "5":
+            break
+        else:
+            print("[bold yellow]Invalid choice[/bold yellow]")
+
+
 def load_or_create_token() -> str:
     SECURE_DIR.mkdir(exist_ok=True)
+    password = load_cached_password() if REMEMBER_PASSWORD else None
 
     if SECURE_FILE.exists():
-        password = getpass("[Promptix] Enter your master password: ")
+        if not password:
+            password = getpass("[Promptix] Enter your master password: ")
+            if REMEMBER_PASSWORD:
+                cache_password(password)
         try:
             with open(SECURE_FILE, "rb") as f:
-                enc_data = f.read()
-            return decrypt_token(enc_data, password)
+                return decrypt_token(f.read(), password)
         except Exception:
             print(
                 "[bold red][!] Invalid password or corrupted token file[/bold red]"
@@ -73,6 +161,8 @@ def load_or_create_token() -> str:
         enc_data = encrypt_token(token, password)
         with open(SECURE_FILE, "wb") as f:
             f.write(enc_data)
+        if REMEMBER_PASSWORD:
+            cache_password(password)
         print("[bold green][✓] Token stored securely[/bold green]")
         return token
 
@@ -119,6 +209,12 @@ def pop_context(event: KeyPressEvent) -> None:
     event.app.exit("")  # type: ignore
 
 
+@bindings.add("c-o")  # type: ignore
+def open_options(event: KeyPressEvent) -> None:
+    event.app.exit("")  # type: ignore
+    configure_promptix()
+
+
 def get_command_from_gpt(prompt: str) -> str:
     full_prompt: str = " ".join(context_stack + [prompt])
 
@@ -162,7 +258,7 @@ def overwrite_previous_prompt_line() -> None:
 
 def main() -> None:
     print(
-        "\n[bold cyan]Promptix started.[/bold cyan] Use [bold]Ctrl+N[/bold] to add context, [bold]Ctrl+B[/bold] to remove it. [bold]Ctrl+C[/bold] to exit.\n"
+        "\n[bold cyan]Promptix started.[/bold cyan] Use [bold]Ctrl+N[/bold] to add context, [bold]Ctrl+B[/bold] to remove it, [bold]Ctrl+O[/bold] to open settings. [bold]Ctrl+C[/bold] to exit.\n"
     )
     while True:
         try:
