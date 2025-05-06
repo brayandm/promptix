@@ -1,12 +1,10 @@
 import os
-import pickle
 import subprocess
 import sys
-import tempfile
 from base64 import urlsafe_b64encode
 from getpass import getpass
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
@@ -23,10 +21,9 @@ from rich.console import Console
 SHOW_CONTEXT_MESSAGES = False
 
 # === Secure Token Storage ===
-
 SECURE_DIR = Path.home() / ".promptix"
 SECURE_FILE = SECURE_DIR / "token.enc"
-SESSION_FILE = Path(tempfile.gettempdir()) / "promptix_session.pkl"
+PASSWORD_CACHE: dict[str, str] = {}
 
 
 def derive_key(password: str, salt: bytes) -> bytes:
@@ -56,50 +53,52 @@ def decrypt_token(enc_data: bytes, password: str) -> str:
     return fernet.decrypt(token_enc).decode()  # type: ignore
 
 
-def save_session_token(decrypted_token: str) -> None:
-    with open(SESSION_FILE, "wb") as f:
-        pickle.dump(decrypted_token, f)
+def get_terminal_session_id() -> str:
+    tty = os.ttyname(0) if os.isatty(0) else "notty"
+    session_id = (
+        f"{os.getenv('USER', '')}:{tty}:{os.getenv('SSH_CONNECTION', '')}"
+    )
+    return session_id
 
 
-def load_session_token() -> str | None:
-    if SESSION_FILE.exists():
-        try:
-            with open(SESSION_FILE, "rb") as f:
-                return pickle.load(f)  # type: ignore
-        except Exception:
-            return None
-    return None
+def get_password_from_cache() -> Optional[str]:
+    session_id = get_terminal_session_id()
+    return PASSWORD_CACHE.get(session_id)
+
+
+def cache_password(password: str) -> None:
+    session_id = get_terminal_session_id()
+    PASSWORD_CACHE[session_id] = password
 
 
 def load_or_create_token() -> str:
-    cached = load_session_token()
-    if cached:
-        print("[bold green][✓] Using cached token from session[/bold green]")
-        return cached
+    password = get_password_from_cache()
+    if not password:
+        if SECURE_FILE.exists():
+            password = getpass("[Promptix] Enter your master password: ")
+        else:
+            password = getpass("[Promptix] Set a master password: ")
+            token = getpass("[Promptix] Enter your OpenAI token: ")
+            enc_data = encrypt_token(token, password)
+            SECURE_DIR.mkdir(exist_ok=True)
+            with open(SECURE_FILE, "wb") as f:
+                f.write(enc_data)
+            print("[bold green][✓] Token stored securely[/bold green]")
+            cache_password(password)
+            return token
 
-    SECURE_DIR.mkdir(exist_ok=True)
-    if SECURE_FILE.exists():
-        password = getpass("[Promptix] Enter your master password: ")
+        cache_password(password)
+
+    try:
         with open(SECURE_FILE, "rb") as f:
             enc_data = f.read()
-        try:
-            token = decrypt_token(enc_data, password)
-            save_session_token(token)
-            return token
-        except Exception:
-            print(
-                "[bold red][!] Invalid password or corrupted token file[/bold red]"
-            )
-            sys.exit(1)
-    else:
-        password = getpass("[Promptix] Set a master password: ")
-        token = getpass("[Promptix] Enter your OpenAI token: ")
-        enc_data = encrypt_token(token, password)
-        with open(SECURE_FILE, "wb") as f:
-            f.write(enc_data)
-        print("[bold green][✓] Token stored securely[/bold green]")
-        save_session_token(token)
+        token = decrypt_token(enc_data, password)
         return token
+    except Exception:
+        print(
+            "[bold red][!] Invalid password or corrupted token file[/bold red]"
+        )
+        sys.exit(1)
 
 
 # === Promptix Core ===
